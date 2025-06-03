@@ -6,6 +6,7 @@ const port = 10000;
 app.get("/userinfo/:username", async (req, res) => {
   try {
     const username = req.params.username;
+    console.log(`Fetching from: ${url}`);
     const userInfoRes = await axios.post(
   `https://users.roblox.com/v1/usernames/users`,
   {
@@ -25,10 +26,15 @@ app.get("/userinfo/:username", async (req, res) => {
 
     // Get basic profile info
     const [profileRes, followersRes, followingRes, friendsRes, gamesRes] = await Promise.all([
+      console.log(`Fetching from: ${url}`);
       axios.get(`https://users.roblox.com/v1/users/${userId}`),
+      console.log(`Fetching from: ${url}`);
       axios.get(`https://friends.roblox.com/v1/users/${userId}/followers/count`),
+      console.log(`Fetching from: ${url}`);
       axios.get(`https://friends.roblox.com/v1/users/${userId}/followings/count`),
+      console.log(`Fetching from: ${url}`);
       axios.get(`https://friends.roblox.com/v1/users/${userId}/friends/count`),
+      console.log(`Fetching from: ${url}`);
       axios.get(`https://games.roblox.com/v1/users/${userId}/games`)
     ]);
 
