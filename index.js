@@ -6,36 +6,44 @@ const port = 10000;
 app.get("/userinfo/:username", async (req, res) => {
   try {
     const username = req.params.username;
-    console.log(`Fetching from: ${url}`);
-    const userInfoRes = await axios.post(
-  `https://users.roblox.com/v1/usernames/users`,
-  {
-    usernames: [username],
-    excludeBannedUsers: false
-  },
-  {
-    headers: { "Content-Type": "application/json" }
-  }
-);
 
+    // Get the userId first
+    const userInfoRes = await axios.post(
+      `https://users.roblox.com/v1/usernames/users`,
+      {
+        usernames: [username],
+        excludeBannedUsers: false
+      },
+      {
+        headers: { "Content-Type": "application/json" }
+      }
+    );
 
     const user = userInfoRes.data.data[0];
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const userId = user.id;
 
-    // Get basic profile info
+    // Prepare all the URLs
+    const profileURL = `https://users.roblox.com/v1/users/${userId}`;
+    const followersURL = `https://friends.roblox.com/v1/users/${userId}/followers/count`;
+    const followingURL = `https://friends.roblox.com/v1/users/${userId}/followings/count`;
+    const friendsURL = `https://friends.roblox.com/v1/users/${userId}/friends/count`;
+    const gamesURL = `https://games.roblox.com/v1/users/${userId}/games`;
+
+    console.log(`Fetching from: ${profileURL}`);
+    console.log(`Fetching from: ${followersURL}`);
+    console.log(`Fetching from: ${followingURL}`);
+    console.log(`Fetching from: ${friendsURL}`);
+    console.log(`Fetching from: ${gamesURL}`);
+
+    // Fetch everything in parallel
     const [profileRes, followersRes, followingRes, friendsRes, gamesRes] = await Promise.all([
-      console.log(`Fetching from: ${url}`);
-      axios.get(`https://users.roblox.com/v1/users/${userId}`),
-      console.log(`Fetching from: ${url}`);
-      axios.get(`https://friends.roblox.com/v1/users/${userId}/followers/count`),
-      console.log(`Fetching from: ${url}`);
-      axios.get(`https://friends.roblox.com/v1/users/${userId}/followings/count`),
-      console.log(`Fetching from: ${url}`);
-      axios.get(`https://friends.roblox.com/v1/users/${userId}/friends/count`),
-      console.log(`Fetching from: ${url}`);
-      axios.get(`https://games.roblox.com/v1/users/${userId}/games`)
+      axios.get(profileURL),
+      axios.get(followersURL),
+      axios.get(followingURL),
+      axios.get(friendsURL),
+      axios.get(gamesURL)
     ]);
 
     const profile = profileRes.data;
@@ -63,8 +71,11 @@ app.get("/userinfo/:username", async (req, res) => {
       totalPlaceVisits: totalVisits
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error", details: err.message });
+    console.error(err.response?.data || err.message || err);
+    res.status(500).json({
+      error: "Internal server error",
+      details: err.response?.data?.errors || err.message
+    });
   }
 });
 
