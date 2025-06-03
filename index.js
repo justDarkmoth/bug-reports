@@ -6,11 +6,17 @@ const port = 10000;
 app.get("/userinfo/:username", async (req, res) => {
   try {
     const username = req.params.username;
-    const userInfoRes = await axios.get(`https://users.roblox.com/v1/usernames/users`, {
-      headers: { "Content-Type": "application/json" },
-      data: { usernames: [username], excludeBannedUsers: false },
-      method: "POST"
-    });
+    const userInfoRes = await axios.post(
+  `https://users.roblox.com/v1/usernames/users`,
+  {
+    usernames: [username],
+    excludeBannedUsers: false
+  },
+  {
+    headers: { "Content-Type": "application/json" }
+  }
+);
+
 
     const user = userInfoRes.data.data[0];
     if (!user) return res.status(404).json({ error: "User not found" });
