@@ -1,17 +1,12 @@
 {
   "name": "roblox-profile-proxy",
   "version": "1.0.0",
-  "description": "Proxy server to access Roblox API from Roblox Studio",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "node-fetch": "^2.6.9",
-    "cors": "^2.8.5"
-  },
-  "engines": {
-    "node": ">=14"
+    "axios": "^1.4.0"
   }
 }
