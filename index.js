@@ -3,11 +3,20 @@ const axios = require("axios");
 const app = express();
 const port = 10000;
 
+async function safeGet(url) {
+  try {
+    console.log(`Fetching from: ${url}`);
+    return await axios.get(url);
+  } catch (err) {
+    console.warn(`Failed to fetch ${url}:`, err.response?.data || err.message);
+    return { data: {} }; // fallback value
+  }
+}
+
 app.get("/userinfo/:username", async (req, res) => {
   try {
     const username = req.params.username;
 
-    // Get the userId first
     const userInfoRes = await axios.post(
       `https://users.roblox.com/v1/usernames/users`,
       {
@@ -24,33 +33,25 @@ app.get("/userinfo/:username", async (req, res) => {
 
     const userId = user.id;
 
-    // Prepare all the URLs
     const profileURL = `https://users.roblox.com/v1/users/${userId}`;
     const followersURL = `https://friends.roblox.com/v1/users/${userId}/followers/count`;
     const followingURL = `https://friends.roblox.com/v1/users/${userId}/followings/count`;
     const friendsURL = `https://friends.roblox.com/v1/users/${userId}/friends/count`;
     const gamesURL = `https://games.roblox.com/v1/users/${userId}/games`;
 
-    console.log(`Fetching from: ${profileURL}`);
-    console.log(`Fetching from: ${followersURL}`);
-    console.log(`Fetching from: ${followingURL}`);
-    console.log(`Fetching from: ${friendsURL}`);
-    console.log(`Fetching from: ${gamesURL}`);
-
-    // Fetch everything in parallel
     const [profileRes, followersRes, followingRes, friendsRes, gamesRes] = await Promise.all([
-      axios.get(profileURL),
-      axios.get(followersURL),
-      axios.get(followingURL),
-      axios.get(friendsURL),
-      axios.get(gamesURL)
+      safeGet(profileURL),
+      safeGet(followersURL),
+      safeGet(followingURL),
+      safeGet(friendsURL),
+      safeGet(gamesURL)
     ]);
 
-    const profile = profileRes.data;
-    const followers = followersRes.data.count;
-    const following = followingRes.data.count;
-    const friends = friendsRes.data.count;
-    const games = gamesRes.data.data;
+    const profile = profileRes.data || {};
+    const followers = followersRes.data?.count ?? 0;
+    const following = followingRes.data?.count ?? 0;
+    const friends = friendsRes.data?.count ?? 0;
+    const games = gamesRes.data?.data ?? [];
 
     let totalVisits = 0;
     for (let game of games) {
@@ -59,19 +60,19 @@ app.get("/userinfo/:username", async (req, res) => {
 
     res.json({
       id: userId,
-      name: profile.name,
-      displayName: profile.displayName,
-      description: profile.description,
-      created: profile.created,
-      isBanned: profile.isBanned,
-      hasVerifiedBadge: profile.hasVerifiedBadge,
+      name: profile.name || user.name,
+      displayName: profile.displayName || user.displayName,
+      description: profile.description || "",
+      created: profile.created || "",
+      isBanned: profile.isBanned ?? false,
+      hasVerifiedBadge: profile.hasVerifiedBadge ?? false,
       followers,
       following,
       friends,
       totalPlaceVisits: totalVisits
     });
   } catch (err) {
-    console.error(err.response?.data || err.message || err);
+    console.error("💥 Top-level error:", err.message);
     res.status(500).json({
       error: "Internal server error",
       details: err.response?.data?.errors || err.message
