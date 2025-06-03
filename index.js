@@ -1,23 +1,34 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const cors = require('cors');
-
+const express = require("express");
+const axios = require("axios");
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 10000;
 
-app.get('/user/:id', async (req, res) => {
-    const userId = req.params.id;
+app.get("/userinfo/:username", async (req, res) => {
+	const username = req.params.username;
+	try {
+		const response = await axios.get(`https://users.roblox.com/v1/usernames/users`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			data: {
+				usernames: [username],
+				excludeBannedUsers: true
+			}
+		});
 
-    try {
-        const response = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-        const data = await response.json();
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch user info' });
-    }
+		const userData = response.data.data[0];
+		if (!userData) {
+			return res.status(404).json({ error: "User not found" });
+		}
+
+		// Fetch full user info using their ID
+		const profileRes = await axios.get(`https://users.roblox.com/v1/users/${userData.id}`);
+		res.json(profileRes.data);
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: "Something went wrong 😭" });
+	}
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Proxy server running on port ${PORT}`);
+	console.log(`Proxy server running on port ${PORT}`);
 });
