@@ -1,74 +1,49 @@
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const fetchWithRetry = async (url, maxRetries = 3, delayMs = 1000) => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-            const res = await fetch(url);
-            if (!res.ok) {
-                const data = await res.json();
-                const errMsg = data?.errors?.[0]?.message || res.statusText;
+import express from 'express';
+import fetch from 'node-fetch'; // or global fetch if you're on newer Node
 
-                // If we got rate-limited, back off and retry
-                if (errMsg.includes("Too many requests") || res.status === 429) {
-                    console.warn(`Rate limited: ${url} — retrying in ${delayMs}ms 😵`);
-                    await delay(delayMs);
-                    continue;
-                }
+const app = express();
+const port = process.env.PORT || 10000;
 
-                // NotFound is fine, just log it once
-                if (errMsg === "NotFound") {
-                    console.warn(`Not found: ${url} 😬`);
-                    return null;
-                }
+// CORS middleware so your frontend doesn’t scream
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
 
-                // Other errors
-                throw new Error(errMsg);
-            }
+// 💀 THE BAREBONES ENDPOINT
+app.get('/roblox/:userId', async (req, res) => {
+  const userId = req.params.userId;
 
-            return await res.json();
-
-        } catch (err) {
-            if (attempt < maxRetries - 1) {
-                console.warn(`Fetch failed (${attempt + 1}/${maxRetries}) for ${url}: ${err.message} 😤 Retrying...`);
-                await delay(delayMs);
-            } else {
-                console.error(`Failed to fetch ${url} after ${maxRetries} attempts: ${err.message} 💀`);
-                return null;
-            }
-        }
+  try {
+    // GET BASIC USER INFO
+    const userInfoRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+    if (!userInfoRes.ok) {
+      return res.status(userInfoRes.status).json({ error: 'User not found' });
     }
-};
 
-// Wrap your main logic with some spacing between fetches
-const fetchUserData = async (userId) => {
-    const base = `https://friends.roblox.com/v1/users/${userId}`;
-    const userUrl = `https://users.roblox.com/v1/users/${userId}`;
-    const gameUrl = `https://games.roblox.com/v1/users/${userId}/games`;
+    const userInfo = await userInfoRes.json();
 
-    console.log(`Fetching info for user: ${userId}`);
+    // 🧼 BASIC CLEAN DATA
+    const cleanUserData = {
+      userId: userId,
+      userInfo: {
+        name: userInfo.name,
+        displayName: userInfo.displayName,
+        description: userInfo.description,
+        created: userInfo.created,
+        isBanned: userInfo.isBanned
+      }
+    };
 
-    const userInfo = await fetchWithRetry(userUrl);
-    const friends = await fetchWithRetry(`${base}/friends/count`);
-    const followers = await fetchWithRetry(`${base}/followers/count`);
-    const following = await fetchWithRetry(`${base}/followings/count`);
-    const games = await fetchWithRetry(gameUrl);
+    res.json(cleanUserData);
 
-    console.log({
-        userId,
-        userInfo,
-        friends,
-        followers,
-        following,
-        games,
-    });
+  } catch (err) {
+    console.error('😭 Proxy failed:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
-    // small delay between users to avoid triggering the 429 gods
-    await delay(500);
-};
-
-// Example usage
-const userIds = ["6221016804", "4875864764"]; // Add more as needed
-(async () => {
-    for (const userId of userIds) {
-        await fetchUserData(userId);
-    }
-})();
+// Start the damn thing
+app.listen(port, () => {
+  console.log(`🔥 Roblox proxy running on http://localhost:${port}`);
+});
