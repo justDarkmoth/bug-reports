@@ -29,10 +29,8 @@ app.get("/followers/:id", async (req, res) => {
     const followersRes = await fetch(`https://friends.roblox.com/v1/users/${id}/followers?limit=100`);
     const followers = await followersRes.json();
 
-    res.json({
-      userId: id,
-      followers,
-    });
+    res.json({ count: assets.length });
+
   } catch (err) {
     res.status(500).json({ error: "😭 Couldn't fetch followers." });
   }
@@ -44,10 +42,8 @@ app.get("/following/:id", async (req, res) => {
     const followingRes = await fetch(`https://friends.roblox.com/v1/users/${id}/followings?limit=100`);
     const following = await followingRes.json();
 
-    res.json({
-      userId: id,
-      following,
-    });
+    res.json({ count: assets.length });
+
   } catch (err) {
     res.status(500).json({ error: "😭 Couldn't fetch following." });
   }
