@@ -29,12 +29,13 @@ app.get("/followers/:id", async (req, res) => {
     const followersRes = await fetch(`https://friends.roblox.com/v1/users/${id}/followers?limit=100`);
     const followers = await followersRes.json();
 
-    res.json({ count: assets.length });
+    res.json({ count: followers.data.length }); // 🔥 FIXED
 
   } catch (err) {
     res.status(500).json({ error: "😭 Couldn't fetch followers." });
   }
 });
+
 
 app.get("/following/:id", async (req, res) => {
   try {
@@ -42,12 +43,13 @@ app.get("/following/:id", async (req, res) => {
     const followingRes = await fetch(`https://friends.roblox.com/v1/users/${id}/followings?limit=100`);
     const following = await followingRes.json();
 
-    res.json({ count: assets.length });
+    res.json({ count: following.data.length }); // 🔥 FIXED
 
   } catch (err) {
     res.status(500).json({ error: "😭 Couldn't fetch following." });
   }
 });
+
 
 app.listen(port, () => {
   console.log(`🔥 Roblox proxy running on http://localhost:${port}`);
