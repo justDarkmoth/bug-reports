@@ -1,85 +1,45 @@
 const express = require("express");
-const axios = require("axios");
 const app = express();
 const port = 10000;
-
-async function safeGet(url) {
-  try {
-    console.log(`Fetching from: ${url}`);
-    return await axios.get(url);
-  } catch (err) {
-    console.warn(`Failed to fetch ${url}:`, err.response?.data || err.message);
-    return { data: {} }; // fallback value
-  }
-}
 
 app.get("/userinfo/:username", async (req, res) => {
   try {
     const username = req.params.username;
+    const lookup = await fetch("https://users.roblox.com/v1/usernames/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: [username] })
+    }).then(r => r.json());
 
-    const userInfoRes = await axios.post(
-      `https://users.roblox.com/v1/usernames/users`,
-      {
-        usernames: [username],
-        excludeBannedUsers: false
-      },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
-    );
-
-    const user = userInfoRes.data.data[0];
+    const user = lookup.data?.[0];
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const userId = user.id;
-
-    const profileURL = `https://users.roblox.com/v1/users/${userId}`;
-    const followersURL = `https://friends.roblox.com/v1/users/${userId}/followers/count`;
-    const followingURL = `https://friends.roblox.com/v1/users/${userId}/followings/count`;
-    const friendsURL = `https://friends.roblox.com/v1/users/${userId}/friends/count`;
-    const gamesURL = `https://games.roblox.com/v1/users/${userId}/games`;
-
-    const [profileRes, followersRes, followingRes, friendsRes, gamesRes] = await Promise.all([
-      safeGet(profileURL),
-      safeGet(followersURL),
-      safeGet(followingURL),
-      safeGet(friendsURL),
-      safeGet(gamesURL)
+    const [profile, followers, following, friends, games] = await Promise.all([
+      fetch(`https://users.roblox.com/v1/users/${user.id}`).then(r => r.json()),
+      fetch(`https://friends.roblox.com/v1/users/${user.id}/followers/count`).then(r => r.json()),
+      fetch(`https://friends.roblox.com/v1/users/${user.id}/followings/count`).then(r => r.json()),
+      fetch(`https://friends.roblox.com/v1/users/${user.id}/friends/count`).then(r => r.json()),
+      fetch(`https://games.roblox.com/v1/users/${user.id}/games`).then(r => r.json())
     ]);
 
-    const profile = profileRes.data || {};
-    const followers = followersRes.data?.count ?? 0;
-    const following = followingRes.data?.count ?? 0;
-    const friends = friendsRes.data?.count ?? 0;
-    const games = gamesRes.data?.data ?? [];
-
-    let totalVisits = 0;
-    for (let game of games) {
-      totalVisits += game.visits || 0;
-    }
+    const visits = games.data?.reduce((t, g) => t + (g.visits || 0), 0) || 0;
 
     res.json({
-      id: userId,
-      name: profile.name || user.name,
-      displayName: profile.displayName || user.displayName,
-      description: profile.description || "",
-      created: profile.created || "",
-      isBanned: profile.isBanned ?? false,
-      hasVerifiedBadge: profile.hasVerifiedBadge ?? false,
-      followers,
-      following,
-      friends,
-      totalPlaceVisits: totalVisits
+      id: user.id,
+      name: profile.name,
+      displayName: profile.displayName,
+      description: profile.description,
+      created: profile.created,
+      isBanned: profile.isBanned,
+      hasVerifiedBadge: profile.hasVerifiedBadge,
+      followers: followers.count,
+      following: following.count,
+      friends: friends.count,
+      totalPlaceVisits: visits
     });
   } catch (err) {
-    console.error("💥 Top-level error:", err.message);
-    res.status(500).json({
-      error: "Internal server error",
-      details: err.response?.data?.errors || err.message
-    });
+    res.status(500).json({ error: "Internal error", msg: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Proxy server running on port ${port}`);
-});
+app.listen(port, () => console.log(`👻 http://localhost:${port}`));
