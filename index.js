@@ -1,53 +1,42 @@
+const express = require("express");
+const fetch = require("node-fetch");
+const cors = require("cors");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+
 app.get("/userinfo/:username", async (req, res) => {
-  try {
-    const username = req.params.username;
+	try {
+		const username = req.params.username;
+		if (!username) return res.status(400).json({ error: "Bruh. Username is missing." });
 
-    // Step 1: Get User Info
-    const userRes = await fetch(`https://users.roblox.com/v1/usernames/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: [username], excludeBannedUsers: false })
-    });
-    const user = (await userRes.json()).data[0];
-    if (!user) return res.status(404).json({ error: "User not found" });
+		const userRes = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ usernames: [username] }),
+		});
 
-    // Step 2: Get Friends Count
-    const friendsRes = await fetch(`https://friends.roblox.com/v1/users/${user.id}/friends/count`);
-    const friends = (await friendsRes.json()).count;
+		if (!userRes.ok) throw new Error("Roblox API died while fetching user ID");
 
-    // Step 3: Get Followers & Following
-    const followers = await fetch(`https://friends.roblox.com/v1/users/${user.id}/followers/count`).then(r => r.json()).then(d => d.count);
-    const following = await fetch(`https://friends.roblox.com/v1/users/${user.id}/followings/count`).then(r => r.json()).then(d => d.count);
+		const userData = await userRes.json();
+		if (!userData.data || userData.data.length === 0)
+			return res.status(404).json({ error: "That username doesn’t exist, chief." });
 
-    // Step 4: Get User Places to find universeIds
-    const placesRes = await fetch(`https://develop.roblox.com/v1/users/${user.id}/places`);
-    const places = (await placesRes.json()).data;
-    const universeIds = [...new Set(places.map(place => place.universeId))].filter(Boolean);
+		const userId = userData.data[0].id;
 
-    // Step 5: Get Visit Counts per universe
-    let totalPlaceVisits = 0;
-    if (universeIds.length > 0) {
-      const universeRes = await fetch(`https://games.roblox.com/v1/games?universeIds=${universeIds.join(",")}`);
-      const universeData = (await universeRes.json()).data;
-      totalPlaceVisits = universeData.reduce((sum, game) => sum + (game.visits || 0), 0);
-    }
+		const profileRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+		if (!profileRes.ok) throw new Error("Roblox API fumbled getting the profile");
 
-    // Final Response
-    res.json({
-      id: user.id,
-      name: user.name,
-      displayName: user.displayName,
-      description: user.description,
-      created: user.created,
-      isBanned: user.isBanned,
-      hasVerifiedBadge: user.hasVerifiedBadge,
-      followers,
-      following,
-      friends,
-      totalPlaceVisits
-    });
-  } catch (err) {
-    console.error("Error fetching user info:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+		const profileData = await profileRes.json();
+		res.json(profileData);
+	} catch (err) {
+		console.error("😭 Error:", err.message);
+		res.status(500).json({ error: "Proxy server had a stroke tryna get that data." });
+	}
+});
+
+app.listen(PORT, () => {
+	console.log(`✅ Server running on port ${PORT}`);
 });
