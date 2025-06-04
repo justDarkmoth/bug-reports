@@ -1,42 +1,74 @@
-const express = require("express");
-const fetch = require("node-fetch");
-const cors = require("cors");
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const fetchWithRetry = async (url, maxRetries = 3, delayMs = 1000) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) {
+                const data = await res.json();
+                const errMsg = data?.errors?.[0]?.message || res.statusText;
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+                // If we got rate-limited, back off and retry
+                if (errMsg.includes("Too many requests") || res.status === 429) {
+                    console.warn(`Rate limited: ${url} — retrying in ${delayMs}ms 😵`);
+                    await delay(delayMs);
+                    continue;
+                }
 
-app.use(cors());
+                // NotFound is fine, just log it once
+                if (errMsg === "NotFound") {
+                    console.warn(`Not found: ${url} 😬`);
+                    return null;
+                }
 
-app.get("/userinfo/:username", async (req, res) => {
-	try {
-		const username = req.params.username;
-		if (!username) return res.status(400).json({ error: "Bruh. Username is missing." });
+                // Other errors
+                throw new Error(errMsg);
+            }
 
-		const userRes = await fetch(`https://users.roblox.com/v1/usernames/users`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ usernames: [username] }),
-		});
+            return await res.json();
 
-		if (!userRes.ok) throw new Error("Roblox API died while fetching user ID");
+        } catch (err) {
+            if (attempt < maxRetries - 1) {
+                console.warn(`Fetch failed (${attempt + 1}/${maxRetries}) for ${url}: ${err.message} 😤 Retrying...`);
+                await delay(delayMs);
+            } else {
+                console.error(`Failed to fetch ${url} after ${maxRetries} attempts: ${err.message} 💀`);
+                return null;
+            }
+        }
+    }
+};
 
-		const userData = await userRes.json();
-		if (!userData.data || userData.data.length === 0)
-			return res.status(404).json({ error: "That username doesn’t exist, chief." });
+// Wrap your main logic with some spacing between fetches
+const fetchUserData = async (userId) => {
+    const base = `https://friends.roblox.com/v1/users/${userId}`;
+    const userUrl = `https://users.roblox.com/v1/users/${userId}`;
+    const gameUrl = `https://games.roblox.com/v1/users/${userId}/games`;
 
-		const userId = userData.data[0].id;
+    console.log(`Fetching info for user: ${userId}`);
 
-		const profileRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-		if (!profileRes.ok) throw new Error("Roblox API fumbled getting the profile");
+    const userInfo = await fetchWithRetry(userUrl);
+    const friends = await fetchWithRetry(`${base}/friends/count`);
+    const followers = await fetchWithRetry(`${base}/followers/count`);
+    const following = await fetchWithRetry(`${base}/followings/count`);
+    const games = await fetchWithRetry(gameUrl);
 
-		const profileData = await profileRes.json();
-		res.json(profileData);
-	} catch (err) {
-		console.error("😭 Error:", err.message);
-		res.status(500).json({ error: "Proxy server had a stroke tryna get that data." });
-	}
-});
+    console.log({
+        userId,
+        userInfo,
+        friends,
+        followers,
+        following,
+        games,
+    });
 
-app.listen(PORT, () => {
-	console.log(`✅ Server running on port ${PORT}`);
-});
+    // small delay between users to avoid triggering the 429 gods
+    await delay(500);
+};
+
+// Example usage
+const userIds = ["6221016804", "4875864764"]; // Add more as needed
+(async () => {
+    for (const userId of userIds) {
+        await fetchUserData(userId);
+    }
+})();
